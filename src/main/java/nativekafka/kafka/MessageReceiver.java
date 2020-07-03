@@ -1,4 +1,4 @@
-package kafka;
+package nativekafka.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -7,9 +7,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MessageReceiver {
@@ -20,18 +20,30 @@ public class MessageReceiver {
     private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
     private final Thread receiverThread;
 
-    int count = 0;
+    private long count = 0;
 
-    public MessageReceiver(Properties kafkaProps, List<String> topics) {
+    public MessageReceiver(Properties kafkaProps) {
         this.consumer = new KafkaConsumer<String, String>(kafkaProps);
-        consumer.subscribe(topics);
         receiverThread = new Thread(getReceiver());
     }
 
-    public MessageReceiver(Properties kafkaProps, String topic, int partition) {
-        this.consumer = new KafkaConsumer<String, String>(kafkaProps);
-        consumer.assign(List.of(new TopicPartition(topic, partition)));
-        receiverThread = new Thread(getReceiver());
+    public void setTopics(List<String> topics) {
+        consumer.subscribe(topics);
+    }
+
+    public void setTopicPartition(List<TopicPartition> tp) {
+        consumer.assign(tp);
+    }
+
+    public void setOffset(String seekType, List<TopicPartition> tp) {
+        if (seekType.equalsIgnoreCase("Beginning"))
+            consumer.seekToBeginning(tp);
+        if (seekType.equalsIgnoreCase("End"))
+            consumer.seekToEnd(tp);
+    }
+
+    public void setOffset(TopicPartition tp, long offset) {
+        consumer.seek(tp, offset);
     }
 
     public synchronized void start() {
@@ -55,15 +67,23 @@ public class MessageReceiver {
         logger.info("MessageReceiver finished successfully");
         System.out.println(count);
     }
+    private String convertMillInDate(long millis) {
+        Date date = new Date(millis);
+        SimpleDateFormat sdf = new SimpleDateFormat("EEEE,MMMM d,yyyy h:mm,a");
+        //sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return sdf.format(date);
+    }
 
     private Runnable getReceiver() {
         return () -> {
             while (!isInterrupted.get()) {
                 try {
+
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
                     for (ConsumerRecord<String, String> record : records) {
-                        String valueStr = record.value();
-                        logger.info("received record: " + valueStr);
+                        logger.info(String.format("received record: topic = %s, partition = %d, offset = %d, date = %s, " +
+                                        "key = %s, value = %s", record.topic(), record.partition(), record.offset(), convertMillInDate(record.timestamp()),
+                                record.key(), record.value()));
                         count++;
                     }
                 } catch (Exception ex) {

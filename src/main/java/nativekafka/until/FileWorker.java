@@ -1,4 +1,4 @@
-package until;
+package nativekafka.until;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -13,10 +13,10 @@ public class FileWorker {
 
     public void getPropertiesFromFile(Properties props, String fileName) {
         try(InputStream in = new FileInputStream(fileName)) {
-            logger.warn(String.format("Производится чтение property из файла %s", fileName));
+            logger.info(String.format("Производится чтение property из файла %s", fileName));
             props.load(in);
         } catch (Exception e) {
-            logger.info(e.getMessage());
+            logger.warn(e.getMessage());
         }
     }
 }
